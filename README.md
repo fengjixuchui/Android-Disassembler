@@ -154,6 +154,9 @@ You can download the theme.zip here.
  - [Multi-level-Listview](https://github.com/open-rnd/android-multi-level-listview)
  - [Facile-api](https://github.com/TomSmartBishop/facile-api)
  - [plthook](https://github.com/kubo/plthook/)
+ - [ELFIO](https://github.com/serge1/ELFIO) - bibliography: [TimScriptov/Disassembler](https://github.com/TimScriptov/Disassembler/blob/master/app/src/main/jni/Disassembler.cpp)
+ - [apache commons compress](https://commons.apache.org/proper/commons-compress/)
+ - [LouisCAD/Splitties](https://github.com/LouisCAD/Splitties)
 # TODO
  - Show prototypes of NDK/C standard APIs in the symbols tab.
  - More sophisticated colorizing
@@ -169,6 +172,8 @@ You can download the theme.zip here.
  - Add compatibility for IDA's produce files.
  - About to add other utilities.
  - Add android resource analyzer
+ - Improve elf parser
+ - Improve file(data source) chooser
 
 # Help wanted!
  - Don't the symbols' names look odd?

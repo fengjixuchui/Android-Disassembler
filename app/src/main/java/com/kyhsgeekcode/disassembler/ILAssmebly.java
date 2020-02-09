@@ -14,6 +14,16 @@ public class ILAssmebly extends AbstractFile {
     }
 
     @Override
+    public void setPath(String path) {
+        super.setPath(path);
+    }
+
+    @Override
+    public String getPath() {
+        return super.getPath();
+    }
+
+    @Override
     public MachineType getMachineType() {
         return super.getMachineType();
     }
