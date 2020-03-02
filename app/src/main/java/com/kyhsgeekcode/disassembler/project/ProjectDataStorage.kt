@@ -1,12 +1,12 @@
 package com.kyhsgeekcode.disassembler.project
 
 import android.util.Log
-import kotlinx.serialization.UnstableDefault
 import java.io.File
+import kotlinx.serialization.UnstableDefault
 
 object ProjectDataStorage {
     val TAG = "ProjectDataStorage"
-    //Pair of relPath and dataType
+    // Pair of relPath and dataType
     val data: MutableMap<Pair<String, DataType>, Any> = HashMap()
 
     @UnstableDefault
@@ -26,10 +26,10 @@ object ProjectDataStorage {
 //        return orig
 //    }
 
-    //If target does not exist(is a direcory)
-    //중간 것의 original을 얻는 게 아니라면 반드시 전개된 것이 있다.
-    //우선 열기시도하고 directory가 아니라면 gen 붙여 찾기
-    //Objective: given Key relPath, get writable/readable file
+    // If target does not exist(is a direcory)
+    // 중간 것의 original을 얻는 게 아니라면 반드시 전개된 것이 있다.
+    // 우선 열기시도하고 directory가 아니라면 gen 붙여 찾기
+    // Objective: given Key relPath, get writable/readable file
     @UnstableDefault
     fun resolveToRead(relPath: String): File? {
         requireNotNull(ProjectManager.currentProject)
@@ -45,10 +45,10 @@ object ProjectDataStorage {
                 return newfile
         }
         Log.d(TAG, "Could not find from orig:$relPath")
-        //Search in gen
+        // Search in gen
         val generated = ProjectManager.currentProject!!.rootFile.resolve("generated")
         file = generated
-        val finalIndex = paths.size-1
+        val finalIndex = paths.size - 1
         for (pathI in paths.withIndex()) {
             val path = pathI.value
             val index = pathI.index
@@ -64,8 +64,7 @@ object ProjectDataStorage {
                     return null
                 }
             } else if (file.exists() && file.isDirectory) {
-
-            } else if(file.exists()){
+            } else if (file.exists()) {
                 file = File("${file.absolutePath}_gen")
             }
         }
@@ -90,12 +89,12 @@ object ProjectDataStorage {
             file = file.resolve(path)
             if (index == finalIndex) {
                 if (file.exists()) {
-                    return if(file.isDirectory) {
-                        if(isDirectory)
+                    return if (file.isDirectory) {
+                        if (isDirectory)
                             file
                         else
                             File("${file.absolutePath}_gen")
-                    } else if(isDirectory) {
+                    } else if (isDirectory) {
                         File("${file.absolutePath}_gen")
                     } else if (overwrite) {
                         file.delete()
@@ -110,7 +109,6 @@ object ProjectDataStorage {
             } else {
                 if (file.exists()) {
                     if (file.isDirectory) {
-
                     } else {
                         Log.d(TAG, "File $file exists and appended gen")
                         file = File("${file.absolutePath}_gen")

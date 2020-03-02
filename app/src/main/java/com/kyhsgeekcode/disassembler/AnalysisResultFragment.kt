@@ -50,10 +50,10 @@ class AnalysisResultFragment : Fragment() {
         imageViewCount.setOnClickListener {
             val builder = Dialog(activity!!, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
             builder.requestWindowFeature(Window.FEATURE_NO_TITLE)
-            //builder.getWindow().setBackgroundDrawable(
+            // builder.getWindow().setBackgroundDrawable(
 //        new ColorDrawable(android.graphics.Color.TRANSPARENT));
             builder.setOnDismissListener {
-                //nothing;
+                // nothing;
             }
             val imageView: ImageView = PhotoView(activity)
             imageView.setImageDrawable(imageViewCount!!.drawable)
@@ -70,12 +70,12 @@ class AnalysisResultFragment : Fragment() {
                 analyzer.analyze { i, total, caption ->
                     circularType.setMessage(caption)
                     snackProgressBarManager.setProgress(i)
-                    activity?.runOnUiThread{
+                    activity?.runOnUiThread {
                         snackProgressBarManager.show(circularType, SnackProgressBarManager.LENGTH_INDEFINITE)
                     }
                     true
                 }
-                activity?.runOnUiThread{
+                activity?.runOnUiThread {
                     snackProgressBarManager.dismiss()
                     val drawable = analyzer.getImage()
                     tvAnalRes.text = analyzer.result
