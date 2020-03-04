@@ -83,6 +83,7 @@ meta-data android:name="com.google.android.gms.version"
         <activity android:name=".FileSelectorActivity" />
         <activity android:name="com.kyhsgeekcode.rootpicker.FileSelectorActivity" />
         <activity android:name=".DonateActivity" />
+
     </application>
 
 </manifest>

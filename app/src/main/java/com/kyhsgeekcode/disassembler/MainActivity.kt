@@ -19,6 +19,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
 import com.codekidlabs.storagechooser.StorageChooser
 import com.codekidlabs.storagechooser.utils.DiskUtil
+import com.gu.toolargetool.TooLargeTool
 import com.kyhsgeekcode.callPrivateFunc
 import com.kyhsgeekcode.deleteRecursive
 import com.kyhsgeekcode.disassembler.Calc.Calculator
@@ -35,6 +36,7 @@ import kotlinx.serialization.UnstableDefault
 import pl.openrnd.multilevellistview.ItemInfo
 import pl.openrnd.multilevellistview.MultiLevelListView
 import pl.openrnd.multilevellistview.OnItemClickListener
+import splitties.init.appCtx
 import java.io.*
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
@@ -141,7 +143,7 @@ class MainActivity : AppCompatActivity(),
 
     /*ArrayList*/
 
-    private var dataFragment: RetainedFragment? = null
+
     private var disasmManager: DisassemblyManager? = null
 
     // private SymbolTableAdapter symAdapter;
@@ -166,6 +168,7 @@ class MainActivity : AppCompatActivity(),
     lateinit var pagerAdapter: ViewPagerAdapter
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        TooLargeTool.startLogging(application)
         setupUncaughtException()
         initNative()
         setContentView(R.layout.main)
@@ -393,10 +396,10 @@ class MainActivity : AppCompatActivity(),
                 // SettingActivity.putExtra("ColorHelper",colorHelper);
                 startActivity(intent)
             }
-            R.id.online_help -> {
-                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/KYHSGeekCode/Android-Disassembler#usage-explanation-video"))
-                startActivity(browserIntent)
-            }
+//            R.id.online_help -> {
+//                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/KYHSGeekCode/Android-Disassembler#usage-explanation-video"))
+//                startActivity(browserIntent)
+//            }
             R.id.calc -> {
                 val et = EditText(this)
                 showEditDialog(this, getString(R.string.calculator), "Enter an expression to measure", et, getString(R.string.ok), DialogInterface.OnClickListener { p1, p2 -> Toast.makeText(this@MainActivity, Calculator.Calc(et.text.toString()).toString(), Toast.LENGTH_SHORT).show() }, getString(R.string.cancel), null)
