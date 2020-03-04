@@ -19,6 +19,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
 import com.codekidlabs.storagechooser.StorageChooser
 import com.codekidlabs.storagechooser.utils.DiskUtil
+import com.google.android.material.tabs.TabLayoutMediator
 import com.gu.toolargetool.TooLargeTool
 import com.kyhsgeekcode.callPrivateFunc
 import com.kyhsgeekcode.deleteRecursive
@@ -26,6 +27,7 @@ import com.kyhsgeekcode.disassembler.Calc.Calculator
 import com.kyhsgeekcode.disassembler.Utils.ProjectManager_OLD
 import com.kyhsgeekcode.disassembler.preference.SettingsActivity
 import com.kyhsgeekcode.disassembler.project.ProjectManager
+import com.kyhsgeekcode.disassembler.project.models.ProjectType
 import com.kyhsgeekcode.filechooser.NewFileChooserActivity
 import com.kyhsgeekcode.filechooser.model.FileItem
 import com.kyhsgeekcode.isArchive
@@ -36,13 +38,13 @@ import kotlinx.serialization.UnstableDefault
 import pl.openrnd.multilevellistview.ItemInfo
 import pl.openrnd.multilevellistview.MultiLevelListView
 import pl.openrnd.multilevellistview.OnItemClickListener
-import splitties.init.appCtx
-import java.io.*
+import java.io.DataInputStream
+import java.io.File
+import java.io.IOException
+import java.io.InputStream
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.regex.Pattern
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
 
 class MainActivity : AppCompatActivity(),
         ITabController,
@@ -166,17 +168,24 @@ class MainActivity : AppCompatActivity(),
     private lateinit var mDrawerAdapter: FileDrawerListAdapter
 
     lateinit var pagerAdapter: ViewPagerAdapter
+
+    lateinit var overviewFragment: ProjectOverviewFragment
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         TooLargeTool.startLogging(application)
         setupUncaughtException()
         initNative()
         setContentView(R.layout.main)
-        pagerAdapter = ViewPagerAdapter(supportFragmentManager)
+        pagerAdapter = ViewPagerAdapter(this)
         pagerMain.adapter = pagerAdapter
-        tablayout.setupWithViewPager(pagerMain)
+//        tablayout.setupWithViewPager(pagerMain)
+        TabLayoutMediator(tablayout, pagerMain) { tab, position ->
+            tab.text = pagerAdapter.getTitle(position)
+            pagerMain.setCurrentItem(tab.position, true)
+        }.attach()
         pagerMain.offscreenPageLimit = 20
-        pagerAdapter.addFragment(ProjectOverviewFragment.newInstance(), "Overview")
+        overviewFragment = ProjectOverviewFragment.newInstance()
+        pagerAdapter.addFragment(overviewFragment, "Overview")
 
 //        setupSymCompleteAdapter()
         toDoAfterPermQueue.add(Runnable {
@@ -373,7 +382,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onBackPressed() {
-        val fragment = pagerAdapter.getItem(pagerMain.currentItem)
+        val fragment = pagerAdapter.createFragment(pagerMain.currentItem)
         (fragment as? IOnBackPressed)?.onBackPressed()?.not()?.let {
             super.onBackPressed()
         }
@@ -673,7 +682,21 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
+    @UnstableDefault
     private fun onChoosePathNew(uri: Uri) {
+        if (uri.scheme == "content") {
+            contentResolver.openInputStream(uri).use { inStream ->
+                val file = getExternalFilesDir(null)?.resolve("tmp")?.resolve("openDirect")
+                        ?: return
+                file.parentFile.mkdirs()
+                file.outputStream().use{ fileOut ->
+                    inStream?.copyTo(fileOut)
+                }
+                val project = ProjectManager.newProject(file, ProjectType.UNKNOWN, file.name, true)
+                overviewFragment.initializeDrawer(project)
+                notifyDataSetChanged()
+            }
+        }
     }
 
 //    private fun onChoosePath(uri: Uri) {
@@ -816,53 +839,53 @@ class MainActivity : AppCompatActivity(),
         return
     }
 
-    private fun HandleZipFIle(path: String, inputStream: InputStream): Boolean {
-        var lowname: String
-        val candfolder = File(filesDir, "candidates/")
-        val candidates: MutableList<String> = ArrayList()
-        try {
-            val zi = ZipInputStream(inputStream)
-            var entry: ZipEntry?
-            val buffer = ByteArray(2048)
-            while (zi.nextEntry.also { entry = it } != null) {
-                val name = entry!!.name
-                lowname = name.toLowerCase()
-                if (!lowname.endsWith(".so") && !lowname.endsWith(".dll") && !lowname.endsWith(".exe")) {
-                    continue
-                }
-                val outfile = File(candfolder, name)
-                outfile.delete()
-                outfile.parentFile.mkdirs()
-                val canonicalPath = outfile.canonicalPath
-                if (!canonicalPath.startsWith(candfolder.canonicalPath)) {
-                    throw SecurityException("The zip/apk file may have a Zip Path Traversal Vulnerability." +
-                            "Is the zip/apk file trusted?")
-                }
-                var output: FileOutputStream? = null
-                try {
-                    output = FileOutputStream(outfile)
-                    var len = 0
-                    while (zi.read(buffer).also { len = it } > 0) {
-                        output.write(buffer, 0, len)
-                    }
-                    candidates.add(name)
-                } finally { // we must always close the output file
-                    output?.close()
-                }
-            }
-            // Ask which to analyze
-            showSelDialog(candidates, "Which file do you want to analyze?", DialogInterface.OnClickListener { dialog, which ->
-                val targetname = candidates[which]
-                val targetPath = File(candfolder, targetname).path
-                Log.d(TAG, "USER choosed :$targetPath")
-//                onChoosePath(targetPath)
-            })
-            return true
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to unzip the content of file:$path", e)
-        }
-        return false
-    }
+//    private fun HandleZipFIle(path: String, inputStream: InputStream): Boolean {
+//        var lowname: String
+//        val candfolder = File(filesDir, "candidates/")
+//        val candidates: MutableList<String> = ArrayList()
+//        try {
+//            val zi = ZipInputStream(inputStream)
+//            var entry: ZipEntry?
+//            val buffer = ByteArray(2048)
+//            while (zi.nextEntry.also { entry = it } != null) {
+//                val name = entry!!.name
+//                lowname = name.toLowerCase()
+//                if (!lowname.endsWith(".so") && !lowname.endsWith(".dll") && !lowname.endsWith(".exe")) {
+//                    continue
+//                }
+//                val outfile = File(candfolder, name)
+//                outfile.delete()
+//                outfile.parentFile.mkdirs()
+//                val canonicalPath = outfile.canonicalPath
+//                if (!canonicalPath.startsWith(candfolder.canonicalPath)) {
+//                    throw SecurityException("The zip/apk file may have a Zip Path Traversal Vulnerability." +
+//                            "Is the zip/apk file trusted?")
+//                }
+//                var output: FileOutputStream? = null
+//                try {
+//                    output = FileOutputStream(outfile)
+//                    var len = 0
+//                    while (zi.read(buffer).also { len = it } > 0) {
+//                        output.write(buffer, 0, len)
+//                    }
+//                    candidates.add(name)
+//                } finally { // we must always close the output file
+//                    output?.close()
+//                }
+//            }
+//            // Ask which to analyze
+//            showSelDialog(candidates, "Which file do you want to analyze?", DialogInterface.OnClickListener { dialog, which ->
+//                val targetname = candidates[which]
+//                val targetPath = File(candfolder, targetname).path
+//                Log.d(TAG, "USER choosed :$targetPath")
+////                onChoosePath(targetPath)
+//            })
+//            return true
+//        } catch (e: IOException) {
+//            Log.e(TAG, "Failed to unzip the content of file:$path", e)
+//        }
+//        return false
+//    }
 
     private fun handleUDDFile(path: String, `is`: InputStream): Boolean {
         return try {
