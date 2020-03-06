@@ -1,4 +1,4 @@
-package com.kyhsgeekcode.disassembler.Utils.Olly;
+package com.kyhsgeekcode.disassembler.utils.Olly;
 
 //Deprecated!!!!!!!!!!!!!!!!!!!!!!!!!
 
