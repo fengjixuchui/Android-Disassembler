@@ -18,6 +18,10 @@ object ProjectDataStorage {
         return data[key] as ByteArray
     }
 
+    fun getExtension(relPath: String) : String {
+        return resolveToRead(relPath)?.extension ?: ""
+    }
+
 //    @UnstableDefault
 //    private fun getOriginalOrGen(relPath: String): File {
 //        val orig = ProjectManager.getOriginal(relPath)
@@ -45,6 +49,10 @@ object ProjectDataStorage {
                 return newfile
         }
         Log.d(TAG, "Could not find from orig:$relPath")
+        file = projectOrig.parentFile.resolve(relPath)
+        if(file.exists() && !file.isDirectory)
+            return file
+        Log.d(TAG,"Could not find from libs: $file")
         // Search in gen
         val generated = ProjectManager.currentProject!!.rootFile.resolve("generated")
         file = generated
@@ -120,6 +128,11 @@ object ProjectDataStorage {
             Log.v(TAG, "File:$file")
         }
         return file
+    }
+
+    fun putFileContent(keykey: String, datadata: ByteArray) {
+         val key = Pair(keykey, DataType.FileContent)
+        data[key] = datadata
     }
 }
 

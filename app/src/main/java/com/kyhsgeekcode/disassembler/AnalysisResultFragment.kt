@@ -10,6 +10,7 @@ import android.widget.RelativeLayout
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.fragment.app.Fragment
 import com.github.chrisbanes.photoview.PhotoView
+import com.kyhsgeekcode.TAG
 import com.kyhsgeekcode.disassembler.project.ProjectDataStorage
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
@@ -37,6 +38,7 @@ class AnalysisResultFragment : Fragment() {
         super.onCreate(savedInstanceState)
         arguments?.let {
             relPath = it.getString(ARG_PARAM)!!
+            it.clear()
         }
         fileContent = ProjectDataStorage.getFileContent(relPath)
     }

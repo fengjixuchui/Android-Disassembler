@@ -35,6 +35,7 @@ class TextFragment : Fragment() {
         super.onCreate(savedInstanceState)
         arguments?.let {
             relPath = it.getString(ARG_PARAM)!!
+            it.clear()
         }
         Log.d(TAG, "relPath:$relPath")
         fileContent = ProjectDataStorage.getFileContent(relPath)
@@ -45,14 +46,17 @@ class TextFragment : Fragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-        val ext = File(relPath).extension.toLowerCase()
+        val ext = ProjectDataStorage.getExtension(relPath) // File(relPath).extension.toLowerCase()
         var highlighted = SpannableStringBuilder()
         var strContent: String?
+        Log.d(TAG, "ext is $ext")
         if (ext == "xml") {
+            Log.d(TAG, "ext is xml")
             try {
                 highlighted = decompressXML(fileContent)
                 strContent = null
             } catch (e: NotThisFormatException) {
+                Log.d(TAG, "NotthisFormatException")
                 strContent = fileContent.toString(Charsets.UTF_8)
             }
         } else {

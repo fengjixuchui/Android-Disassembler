@@ -12,6 +12,7 @@ import android.widget.TableRow
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.kyhsgeekcode.TAG
 import com.kyhsgeekcode.disassembler.models.Architecture.CS_ARCH_ALL
 import com.kyhsgeekcode.disassembler.models.Architecture.CS_ARCH_MAX
 import com.kyhsgeekcode.disassembler.models.Architecture.getArchitecture
@@ -50,6 +51,7 @@ class BinaryDisasmFragment : Fragment(), IOnBackPressed {
         arguments?.let {
             relPath = it.getString(ARG_PARAM)!!
             parsedFile = (parentFragment as IParsedFileProvider).parsedFile
+            it.clear()
         }
     }
 
@@ -134,6 +136,7 @@ class BinaryDisasmFragment : Fragment(), IOnBackPressed {
     }
 
     override fun onBackPressed(): Boolean {
+        Log.d(TAG, "onBackPressed, ${jmpBackstack.size}")
         if (!jmpBackstack.empty()) {
             jumpto(jmpBackstack.pop())
             jmpBackstack.pop()
@@ -147,7 +150,7 @@ class BinaryDisasmFragment : Fragment(), IOnBackPressed {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.chooserow -> {
+            R.id.choosecolumns -> {
                 mCustomDialog = ChooseColumnDialog(activity,
                         "Select columns to view", // Title
                         "Choose columns", // Content
@@ -176,7 +179,7 @@ class BinaryDisasmFragment : Fragment(), IOnBackPressed {
                         val address = dest.toLong(16)
                         jumpto(address)
                     } catch (nfe: NumberFormatException) { // not a number, lookup symbol table
-                        val syms = parsedFile.symbols
+                        val syms = parsedFile.exportSymbols
                         for (sym in syms) {
                             if (sym.name != null && sym.name == dest) {
                                 if (sym.type != Symbol.Type.STT_FUNC) {
@@ -216,7 +219,7 @@ class BinaryDisasmFragment : Fragment(), IOnBackPressed {
         if (isValidAddress(address)) {
             (parentFragment as ITabController).setCurrentTabByTag(TabTags.TAB_DISASM, true)
             jmpBackstack.push(java.lang.Long.valueOf(adapter.currentAddress))
-            adapter.OnJumpTo(address)
+            adapter.onJumpTo(address)
             disasmTabListview.scrollToPosition(0)
         } else {
             Toast.makeText(activity, R.string.validaddress, Toast.LENGTH_SHORT).show()

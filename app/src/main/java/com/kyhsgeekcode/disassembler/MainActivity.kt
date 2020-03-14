@@ -18,14 +18,20 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
+import at.pollaknet.api.facile.FacileReflector
+import at.pollaknet.api.facile.renderer.ILAsmRenderer
+import at.pollaknet.api.facile.symtab.symbols.Method
 import com.codekidlabs.storagechooser.StorageChooser
 import com.codekidlabs.storagechooser.utils.DiskUtil
 import com.google.android.material.tabs.TabLayoutMediator
 import com.gu.toolargetool.TooLargeTool
+import com.kyhsgeekcode.FileExtensions.textFileExts
 import com.kyhsgeekcode.callPrivateFunc
 import com.kyhsgeekcode.deleteRecursive
 import com.kyhsgeekcode.disassembler.Calc.Calculator
+import com.kyhsgeekcode.disassembler.PermissionUtils.requestAppPermissions
 import com.kyhsgeekcode.disassembler.preference.SettingsActivity
+import com.kyhsgeekcode.disassembler.project.ProjectDataStorage
 import com.kyhsgeekcode.disassembler.project.ProjectManager
 import com.kyhsgeekcode.disassembler.project.models.ProjectType
 import com.kyhsgeekcode.disassembler.utils.ProjectManager_OLD
@@ -34,8 +40,11 @@ import com.kyhsgeekcode.filechooser.model.FileItem
 import com.kyhsgeekcode.isArchive
 import com.kyhsgeekcode.rootpicker.FileSelectorActivity
 import com.kyhsgeekcode.sendErrorReport
+import com.tingyik90.snackprogressbar.SnackProgressBar
+import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.serialization.UnstableDefault
+import kotlinx.serialization.toUtf8Bytes
 import pl.openrnd.multilevellistview.ItemInfo
 import pl.openrnd.multilevellistview.MultiLevelListView
 import pl.openrnd.multilevellistview.OnItemClickListener
@@ -54,7 +63,17 @@ class MainActivity : AppCompatActivity(),
         DexFragment.OnFragmentInteractionListener,
         DotNetFragment.OnFragmentInteractionListener,
         StringFragment.OnFragmentInteractionListener,
-        IDrawerManager {
+        IDrawerManager,
+        ProgressHandler {
+
+    private val snackProgressBarManager by lazy { SnackProgressBarManager(mainLayout, lifecycleOwner = this) }
+    private val horizontal = SnackProgressBar(SnackProgressBar.TYPE_HORIZONTAL, "Loading...")
+            .setIsIndeterminate(false)
+            .setAllowUserInput(false)
+    private val indeterminate = SnackProgressBar(SnackProgressBar.TYPE_CIRCULAR, "Loading...")
+            .setIsIndeterminate(true)
+            .setAllowUserInput(false)
+
     companion object {
         const val SETTINGKEY = "setting"
         const val REQUEST_WRITE_STORAGE_REQUEST_CODE = 1
@@ -77,6 +96,7 @@ class MainActivity : AppCompatActivity(),
         const val TAG_PROCESSES = 3
         const val TAG_RUNNING_APPS = 4
 
+
         // //////////////////////////////////////////Data Conversion//////////////////////////////////
         /**
          * @returns handle : Int
@@ -87,8 +107,6 @@ class MainActivity : AppCompatActivity(),
         @JvmStatic
         external fun Finalize(handle: Int)
 
-        val textFileExts: MutableSet<String> = HashSet()
-
         /* this is used to load the 'hello-jni' library on application
      * startup. The library has already been unpacked into
      * /data/data/com.example.hellojni/lib/libhello-jni.so at
@@ -98,16 +116,6 @@ class MainActivity : AppCompatActivity(),
             System.loadLibrary("native-lib")
         }
 
-        init {
-            textFileExts.add("xml")
-            textFileExts.add("txt")
-            textFileExts.add("smali")
-            textFileExts.add("java")
-            textFileExts.add("json")
-            textFileExts.add("md")
-            textFileExts.add("il")
-            textFileExts.add("properties")
-        }
     }
 
     // ////////////////////////////////////////////Views/////////////////////////////////////
@@ -281,7 +289,7 @@ class MainActivity : AppCompatActivity(),
     private fun setupLeftDrawer() {
         // mDrawerList.setOnItemClickListener(new DrawerItemClickListener());
         // Set the adapter for the list view
-        left_drawer.setAdapter(FileDrawerListAdapter().also { mDrawerAdapter = it }) // new ArrayAdapter<String>(MainActivity.this,
+        left_drawer.setAdapter(FileDrawerListAdapter(this).also { mDrawerAdapter = it }) // new ArrayAdapter<String>(MainActivity.this,
         // R.layout.row, mProjNames));
         val initialDrawers: MutableList<FileDrawerListItem> = ArrayList()
         initialDrawers.add(FileDrawerListItem("Projects", 0, FileDrawerListItem.DrawerItemType.PROJECTS))
@@ -314,6 +322,14 @@ class MainActivity : AppCompatActivity(),
     fun determineFragmentToOpen(item: FileDrawerListItem): Pair<Fragment, String> {
         var title = "${item.caption} as ${item.type}"
 //        val rootPath = ProjectManager.getOriginal("").absolutePath
+        if (item.type == FileDrawerListItem.DrawerItemType.METHOD) {
+            val reflector = (item.tag as Array<*>)[0] as FacileReflector
+            val method = (item.tag as Array<*>)[1] as Method
+            val renderedStr = ILAsmRenderer(reflector).render(method)
+            val key = "${method.owner.name}.${method.name}_${method.methodSignature}"
+            ProjectDataStorage.putFileContent(key, renderedStr.toUtf8Bytes())
+            return Pair(TextFragment.newInstance(key), key)
+        }
         val abspath = (item.tag as String)
 //        Log.d(TAG, "rootPath:${rootPath}")
         Log.d(TAG, "absPath:$abspath")
@@ -335,10 +351,11 @@ class MainActivity : AppCompatActivity(),
                 } else {
                     val file = File(abspath)
                     try {
-                        BitmapFactory.decodeStream(file.inputStream())?.recycle()
+                        (BitmapFactory.decodeStream(file.inputStream())
+                                ?: throw Exception()).recycle()
                         ImageFragment.newInstance(relPath)
                     } catch (e: Exception) {
-                        HexFragment.newInstance(relPath)
+                        BinaryFragment.newInstance(relPath)
                     }
                 }
             }
@@ -362,7 +379,9 @@ class MainActivity : AppCompatActivity(),
 
     private fun setupUncaughtException() {
         Thread.setDefaultUncaughtExceptionHandler { p1: Thread?, p2: Throwable ->
-            Toast.makeText(this@MainActivity, Log.getStackTraceString(p2), Toast.LENGTH_SHORT).show()
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, Log.getStackTraceString(p2), Toast.LENGTH_SHORT).show()
+            }
             if (p2 is SecurityException) {
                 Toast.makeText(this@MainActivity, R.string.didUgrant, Toast.LENGTH_SHORT).show()
                 val permSetting = getSharedPreferences(RATIONALSETTING, Context.MODE_PRIVATE)
@@ -392,7 +411,7 @@ class MainActivity : AppCompatActivity(),
 
     override fun onBackPressed() {
         val fragment = pagerAdapter.createFragment(pagerMain.currentItem)
-        (fragment as? IOnBackPressed)?.onBackPressed()?.not()?.let {
+        if ((fragment as? IOnBackPressed)?.onBackPressed() != true) {
             super.onBackPressed()
         }
     }
@@ -407,8 +426,10 @@ class MainActivity : AppCompatActivity(),
         when (id) {
             R.id.closeFile -> {
                 val curTab = getCurrentTab()
-                if(curTab != 0)
+                if (curTab != 0) {
+//                    tablayout.removeTab(tablayout.getTabAt(curTab)!!)
                     pagerAdapter.removeTab(curTab)
+                }
             }
             R.id.settings -> {
                 val intent = Intent(this, SettingsActivity::class.java)
@@ -424,8 +445,13 @@ class MainActivity : AppCompatActivity(),
                 showEditDialog(this, getString(R.string.calculator), "Enter an expression to measure", et, getString(R.string.ok), DialogInterface.OnClickListener { p1, p2 -> Toast.makeText(this@MainActivity, Calculator.Calc(et.text.toString()).toString(), Toast.LENGTH_SHORT).show() }, getString(R.string.cancel), null)
             }
             R.id.donate -> {
-                val intent = Intent(this, DonateActivity::class.java)
-                startActivity(intent)
+                val url = "https://www.buymeacoffee.com/i4QJKbC"
+                val i = Intent(Intent.ACTION_VIEW)
+                i.data = Uri.parse(url)
+                Toast.makeText(this, "Thank you for your appreciate for this app!", Toast.LENGTH_SHORT).show()
+                startActivity(i)
+//                val intent = Intent(this, DonateActivity::class.java)
+//                startActivity(intent)
             }
         }
         return super.onOptionsItemSelected(item)
@@ -1030,7 +1056,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun getCurrentTab(): Int {
-        return tablayout.selectedTabPosition
+        return pagerMain.currentItem
     }
 
     override fun setCurrentTabByTag(tag: String, openNew: Boolean): Boolean {
@@ -1053,6 +1079,27 @@ class MainActivity : AppCompatActivity(),
 //        left_drawer.isAlwaysExpanded = orig
         left_drawer.refreshDrawableState()
         left_drawer.requestLayout()
+    }
+
+    override fun publishProgress(current: Int, total: Int?, message: String?) {
+        snackProgressBarManager.setProgress(current)
+        if (total != null || message != null) {
+            if (total != null)
+                horizontal.setProgressMax(total)
+            if (message != null)
+                horizontal.setMessage(message)
+            snackProgressBarManager.updateTo(horizontal)
+        }
+        if (snackProgressBarManager.getLastShown() != null)
+            snackProgressBarManager.show(horizontal, SnackProgressBarManager.LENGTH_INDEFINITE)
+    }
+
+    override fun startProgress() {
+        snackProgressBarManager.show(indeterminate, SnackProgressBarManager.LENGTH_INDEFINITE)
+    }
+
+    override fun finishProgress() {
+        snackProgressBarManager.dismiss()
     }
 
 //    internal inner class SaveDBAsync : AsyncTask<DatabaseHelper?, Int?, Void?>() {

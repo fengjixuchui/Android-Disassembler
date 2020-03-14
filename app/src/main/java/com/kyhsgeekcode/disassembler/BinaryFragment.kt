@@ -14,7 +14,7 @@ import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.functions
 
-class BinaryFragment : Fragment(), ITabController, IParsedFileProvider {
+class BinaryFragment : Fragment(), ITabController, IParsedFileProvider, IOnBackPressed {
     val TAG = "BinaryFragment"
 
     val ARG_PARAM1 = "RELPATH"
@@ -26,6 +26,7 @@ class BinaryFragment : Fragment(), ITabController, IParsedFileProvider {
         super.onCreate(savedInstanceState)
         arguments?.let {
             relPath = it.getString(ARG_PARAM1)!!
+            it.clear()
         }
     }
 
@@ -47,7 +48,8 @@ class BinaryFragment : Fragment(), ITabController, IParsedFileProvider {
         pagerBinary.offscreenPageLimit = 5
         pagerAdapter.addFragment(BinaryOverviewFragment.newInstance(relPath), "Overview")
         pagerAdapter.addFragment(BinaryDisasmFragment.newInstance(relPath, BinaryDisasmFragment.ViewMode.Binary), "Disassembly")
-        pagerAdapter.addFragment(BinarySymbolFragment.newInstance(relPath), "Symbols")
+        pagerAdapter.addFragment(BinaryExportSymbolFragment.newInstance(relPath), "Export Symbols")
+        pagerAdapter.addFragment(BinaryImportSymbolFragment.newInstance(relPath), "Import Symbols")
         pagerAdapter.addFragment(BinaryDetailFragment.newInstance(relPath), "Details")
     }
 
@@ -100,7 +102,7 @@ class BinaryFragment : Fragment(), ITabController, IParsedFileProvider {
         init {
             classNameByTag[TabTags.TAB_DISASM] = "BinaryDisasmFragment"
             classNameByTag[TabTags.TAB_ANALYSIS] = "AnalysisResultFragment"
-            classNameByTag[TabTags.TAB_EXPORTSYMBOLS] = "BinarySymbolFragment"
+            classNameByTag[TabTags.TAB_EXPORTSYMBOLS] = "BinaryExportSymbolFragment"
             classNameByTag[TabTags.TAB_STRINGS] = "StringFragment"
             classNameByTag[TabTags.TAB_DETAILS] = "BinaryDetailFragment"
         }
@@ -136,5 +138,13 @@ class BinaryFragment : Fragment(), ITabController, IParsedFileProvider {
     fun jumpto(address: Long) {
         setCurrentTabByTag(TabTags.TAB_DISASM, true)
         (pagerAdapter.createFragment(findTabByTag(TabTags.TAB_DISASM)!!) as BinaryDisasmFragment).jumpto(address)
+    }
+
+    override fun onBackPressed(): Boolean {
+        val fragment = pagerAdapter.createFragment(pagerBinary.currentItem)
+        if ((fragment as? IOnBackPressed)?.onBackPressed() != true) {
+            return false
+        }
+        return true
     }
 }
