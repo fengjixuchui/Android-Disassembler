@@ -1,12 +1,14 @@
 package com.kyhsgeekcode.disassembler
 
+import android.text.method.LinkMovementMethod
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
+import androidx.core.text.HtmlCompat
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.android.synthetic.main.import_symbol_row.view.*
+import com.kyhsgeekcode.disassembler.databinding.ImportSymbolRowBinding
+import com.kyhsgeekcode.disassembler.utils.NDKRefUrlMatcher
 import java.util.*
 
 class ImportSymbolListAdapter(val fragmentImport: BinaryImportSymbolFragment) :
@@ -32,20 +34,13 @@ class ImportSymbolListAdapter(val fragmentImport: BinaryImportSymbolFragment) :
     }
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val tvOwner: TextView = view.importsymbolrowTVOwner
-        val tvMangled: TextView = view.importsymbolrowTVmangled
-        val tvDemangled: TextView = view.importsymbolrowTVdemangled
-        val tvAddress: TextView = view.importsymbolrowTVaddress
-        val tvValue: TextView = view.importsymbolrowTVValue
-        val tvOffset = view.importsymbolrowTVOffset
-        val tvType = view.importsymbolrowTVType
-        val tvAddEnd = view.importsymbolrowTVAddEnd
-        val tvCalcValue = view.importsymbolrowTCalcValue
+        val binding = ImportSymbolRowBinding.bind(view)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.import_symbol_row, parent, false)
+        val binding =
+            ImportSymbolRowBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val view = binding.root
 //        listView = parent as RecyclerView
         return ViewHolder(view)
     }
@@ -67,19 +62,32 @@ class ImportSymbolListAdapter(val fragmentImport: BinaryImportSymbolFragment) :
 //            true
 //        }
         with(holder) {
-            tvOwner.text = item.owner
-            tvMangled.text = item.name
-            tvDemangled.text = item.demangled
-            tvAddress.text = item.address.toString(16)
-            tvValue.text = "${item.value}"
-            tvOffset.text = item.offset.toString(16)
-            tvType.text = "${item.type}"
-            tvAddEnd.text = "${item.addend}"
-            tvCalcValue.text = "${item.calcValue}"
+            binding.importsymbolrowTVOwner.text = item.owner
+            binding.importsymbolrowTVmangled.text = item.name
+            with(binding.importsymbolrowTVdemangled) {
+                val url = item.demangled?.run { NDKRefUrlMatcher.getURL(this) }
+                if (url != null) {
+                    text = HtmlCompat.fromHtml(
+                        "<a href=\"${url}\">${item.demangled}</a> ",
+                        HtmlCompat.FROM_HTML_MODE_LEGACY
+                    )
+                    movementMethod = LinkMovementMethod.getInstance()
+                } else {
+                    Log.e(TAG, "Failed to find url for: ${item.demangled}")
+                    text = item.demangled
+                }
+            }
+            binding.importsymbolrowTVaddress.text = item.address.toString(16)
+            binding.importsymbolrowTVValue.text = "${item.value}"
+            binding.importsymbolrowTVOffset.text = item.offset.toString(16)
+            binding.importsymbolrowTVType.text = "${item.type}"
+            binding.importsymbolrowTVAddEnd.text = "${item.addend}"
+            binding.importsymbolrowTCalcValue.text = "${item.calcValue}"
 //            tvAddEnd.visibility = View.GONE
 //            tvCalcValue.visibility = View.GONE
 //            tvValue.visibility = View.GONE
 //            tvAddress.visibility = View.GONE
+
         }
     }
 }
