@@ -8,6 +8,8 @@ import androidx.core.content.ContextCompat
 import at.pollaknet.api.facile.Facile
 import com.kyhsgeekcode.*
 import com.kyhsgeekcode.disassembler.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import splitties.init.appCtx
 import java.io.File
 import java.io.Serializable
@@ -52,7 +54,7 @@ open class FileItem : Serializable {
     var file: File? = null // 항목이 의미하는 파일 자체
     var backFile: File? = null // 항목이 전개되었을 때 나타낼 디렉토리
 
-    val isExpandable: Boolean by lazy {
+    private val isExpandable: Boolean by lazy {
         file?.isDirectory == true ||
                 file?.isArchive() == true ||
                 file == null ||
@@ -70,63 +72,89 @@ open class FileItem : Serializable {
 
     open fun isProjectAble(): Boolean = file?.isDirectory == true
 
-    open fun listSubItems(publisher: (Int, Int) -> Unit = { _, _ -> }): List<FileItem> {
+    open suspend fun listSubItems(publisher: (current: Int, total: Int) -> Unit = { _, _ -> }): List<FileItem> {
         if (!canExpand())
             return emptyList()
-        if (file?.isDirectory == true) {
-            val result = ArrayList<FileItem>()
-            val children = file!!.listFiles()
-            val total = children.size
-            for (childFile in children.withIndex()) {
-                result.add(FileItem(file = childFile.value))
-                publisher(childFile.index, total)
+        when {
+            file?.isDirectory == true -> {
+                val result = ArrayList<FileItem>()
+                val children = file!!.listFiles()
+                val total = children.size
+                for (childFile in children.withIndex()) {
+                    result.add(FileItem(file = childFile.value))
+                    publisher(childFile.index, total)
+                }
+                return result
             }
-            return result
-        } else if (file?.isArchive() == true) {
-            val result = ArrayList<FileItem>()
-            backFile = appCtx.getExternalFilesDir("extracted")?.resolve(file?.name!!)
-            if (backFile?.exists() == true) {
-                backFile!!.delete()
+            file?.isArchive() == true -> {
+                val result = ArrayList<FileItem>()
+                backFile = appCtx.getExternalFilesDir("extracted")?.resolve(file?.name!!)
+                if (backFile?.exists() == true) {
+                    backFile!!.delete()
+                }
+                try {
+                    extract(file!!, backFile!!) { current, total ->
+                        publisher(
+                            current.toInt(),
+                            total.toInt()
+                        )
+                    }
+                    for (childFile in backFile!!.listFiles()) {
+                        result.add(FileItem(file = childFile))
+                    }
+                } catch (e: Exception) {
+                    result.add(FileItem(e.message ?: ""))
+                }
+                return result
             }
-            try {
-                extract(file!!, backFile!!) { tot, don -> publisher(tot.toInt(), don.toInt()) }
+            file?.isDexFile() == true -> {
+                val result = ArrayList<FileItem>()
+                backFile = appCtx.getExternalFilesDir("dex-decompiled")?.resolve(file?.name!!)
+                if (backFile?.exists() == true) {
+                    backFile!!.delete()
+                }
+                publisher(1, 10)
+                withContext(Dispatchers.IO) {
+                    org.jf.baksmali.Main.main(
+                        arrayOf(
+                            "d",
+                            "-o",
+                            backFile!!.absolutePath,
+                            file!!.path
+                        )
+                    )
+                }
                 for (childFile in backFile!!.listFiles()) {
                     result.add(FileItem(file = childFile))
                 }
-            } catch (e: Exception) {
-                result.add(FileItem(e.message ?: ""))
+                publisher(10, 10)
+                return result
             }
-            return result
-        } else if (file?.isDexFile() == true) {
-            val result = ArrayList<FileItem>()
-            backFile = appCtx.getExternalFilesDir("dex-decompiled")?.resolve(file?.name!!)
-            if (backFile?.exists() == true) {
-                backFile!!.delete()
-            }
-            org.jf.baksmali.Main.main(arrayOf("d", "-o", backFile!!.absolutePath, file!!.path))
-            for (childFile in backFile!!.listFiles()) {
-                result.add(FileItem(file = childFile))
-            }
-            return result
-        } else if (file?.isDotnetFile() == true) {
-            val result = ArrayList<FileItem>()
-            val facileReflector = Facile.load(file!!.path)
-            // load the assembly
-            // load the assembly
-            val assembly = facileReflector.loadAssembly()
-            val types = assembly.allTypes
-            for (type in types) {
-                result.add(
-                    FileItemDotNetSymbol(
-                        type.namespace + "." + type.name,
-                        facileReflector,
-                        type
+            file?.isDotnetFile() == true -> {
+                val result = ArrayList<FileItem>()
+                publisher(1, 10)
+                val facileReflector = withContext(Dispatchers.IO) {
+                    Facile.load(file!!.path)
+                }
+                publisher(9, 10)
+                // load the assembly
+                // load the assembly
+                val assembly = facileReflector.loadAssembly()
+                val types = assembly.allTypes
+                for (type in types) {
+                    result.add(
+                        FileItemDotNetSymbol(
+                            type.namespace + "." + type.name,
+                            facileReflector,
+                            type
+                        )
                     )
-                )
+                }
+                publisher(10, 10)
+                return result
             }
-            return result
+            else -> return emptyList()
         }
-        return emptyList()
     }
 
     fun listSubItemsFile(parent: File): List<FileItem> {
@@ -139,7 +167,7 @@ open class FileItem : Serializable {
 
     companion object {
         val rootItem = object : FileItem("Main") {
-            override fun listSubItems(publisher: (Int, Int) -> Unit): List<FileItem> {
+            override suspend fun listSubItems(publisher: (Int, Int) -> Unit): List<FileItem> {
                 return listOf(fileRoot, fileSdcard, apps, processes, others, zoo, hash)
             }
 
@@ -156,49 +184,50 @@ open class FileItem : Serializable {
             override fun canExpand(): Boolean = true
             override fun isRawAvailable(): Boolean = false
             override fun isProjectAble(): Boolean = false
-            override fun listSubItems(publisher: (Int, Int) -> Unit): List<FileItem> {
-                val result = ArrayList<FileItem>()
-                val pm: PackageManager = appCtx.packageManager
-                // get a list of installed apps.
-                val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                val numpkg = packages.size
-                // dialog.setMessage("Sorting APKs...")
-                publisher(numpkg * 2, 0)
-                packages.sortBy {
-                    pm.getApplicationLabel(it) as String
-                }
-                publisher(numpkg * 2, numpkg)
-                var i = 0
-                val defaultD: Drawable? = getDrawable(android.R.drawable.gallery_thumb)
-                for (packageInfo in packages) { // Log.d(TAG, "Installed package :" + packageInfo.packageName);
+            override suspend fun listSubItems(publisher: (Int, Int) -> Unit): List<FileItem> =
+                withContext(Dispatchers.IO) {
+                    val result = ArrayList<FileItem>()
+                    val pm: PackageManager = appCtx.packageManager
+                    // get a list of installed apps.
+                    val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                    val numpkg = packages.size
+                    // dialog.setMessage("Sorting APKs...")
+                    publisher(0, numpkg * 2)
+                    packages.sortBy {
+                        pm.getApplicationLabel(it) as String
+                    }
+                    publisher(numpkg, numpkg * 2)
+                    var i = 0
+                    val defaultD: Drawable? = getDrawable(android.R.drawable.gallery_thumb)
+                    for (packageInfo in packages) { // Log.d(TAG, "Installed package :" + packageInfo.packageName);
 // Log.d(TAG, "Apk file path:" + packageInfo.sourceDir);
-                    val applabel = pm.getApplicationLabel(packageInfo) as String
-                    var icon: Drawable? = defaultD
-                    try {
-                        icon = pm.getApplicationIcon(packageInfo.packageName)
-                    } catch (e: PackageManager.NameNotFoundException) {
-                        Log.e(TAG, "", e)
-                    }
-                    val label = applabel + "(" + packageInfo.packageName + ")"
-                    result.add(
-                        FileItemApp(
-                            label,
-                            File(packageInfo.sourceDir),
-                            File(packageInfo.nativeLibraryDir),
-                            icon
+                        val applabel = pm.getApplicationLabel(packageInfo) as String
+                        var icon: Drawable? = defaultD
+                        try {
+                            icon = pm.getApplicationIcon(packageInfo.packageName)
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            Log.e(TAG, "", e)
+                        }
+                        val label = applabel + "(" + packageInfo.packageName + ")"
+                        result.add(
+                            FileItemApp(
+                                label,
+                                File(packageInfo.sourceDir),
+                                File(packageInfo.nativeLibraryDir),
+                                icon
+                            )
                         )
-                    )
-                    i++
-                    if (i % 10 == 0) {
-                        publisher(numpkg * 2, i + numpkg)
+                        i++
+                        if (i % 10 == 0) {
+                            publisher(i + numpkg, numpkg * 2)
+                        }
                     }
+                    result
                 }
-                return result
-            }
         }
 
         val processes = object : FileItem("Processes", getDrawable(R.drawable.fileitem_processes)) {
-            override fun listSubItems(publisher: (Int, Int) -> Unit): List<FileItem> {
+            override suspend fun listSubItems(publisher: (Int, Int) -> Unit): List<FileItem> {
                 return listOf(FileItem("Currently unavailable"))
             }
 

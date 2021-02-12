@@ -1,17 +1,18 @@
 package com.kyhsgeekcode.filechooser
 
 import android.app.Activity
-import android.content.DialogInterface
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.kyhsgeekcode.disassembler.ProgressHandler
 import com.kyhsgeekcode.disassembler.databinding.ActivityNewFileChooserBinding
 import com.kyhsgeekcode.disassembler.showYesNoDialog
+import com.kyhsgeekcode.download
 import com.kyhsgeekcode.filechooser.model.FileItem
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
@@ -21,8 +22,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import splitties.init.appCtx
-import java.io.File
-import java.io.FileOutputStream
 import java.net.URL
 
 
@@ -52,6 +51,9 @@ class NewFileChooserActivity : AppCompatActivity(), ProgressHandler {
         _binding = ActivityNewFileChooserBinding.inflate(layoutInflater)
         setContentView(binding.root)
         adapter = NewFileChooserAdapter(this)
+        lifecycleScope.launch {
+            adapter.tryAddRootItems()
+        }
         linearLayoutManager = LinearLayoutManager(this)
         binding.recyclerView.layoutManager = linearLayoutManager
         binding.recyclerView.adapter = adapter
@@ -153,7 +155,7 @@ class NewFileChooserActivity : AppCompatActivity(), ProgressHandler {
             this,
             "Danger alert",
             "The file you are trying to download may harm your device. Proceed?",
-            DialogInterface.OnClickListener { dlg, which ->
+            { dlg, which ->
                 val url = "https://infosec.cert-pa.it/analyze/$hash.html"
                 val i = Intent(Intent.ACTION_VIEW)
                 i.data = Uri.parse(url)
@@ -193,15 +195,6 @@ class NewFileChooserActivity : AppCompatActivity(), ProgressHandler {
             },
             null
         )
-
-
     }
 
-    fun download(link: String, file: File) {
-        URL(link).openStream().use { input ->
-            FileOutputStream(file).use { output ->
-                input.copyTo(output)
-            }
-        }
-    }
 }
